@@ -10,7 +10,7 @@
         {
             "language": "shellscript",
             "source": [
-                "npm install langchain @langchain/community\nnpm install @langchain/openai\nnpm install openai\nnpm install chromadb\nnpm install simple-git\nnpm install pdf-parse\nnpm install dotenv\n\ndocker pull chromadb/chroma \ndocker run -p 8000:8000 chromadb/chroma \n\nexport OPENAI_API_KEY_=YOUR_OPENAI_API_KEY"
+                "npm install langchain @langchain/community\nnpm install @langchain/openai\nnpm install openai\nnpm install chromadb\nnpm install simple-git\nnpm install pdf-parse\nnpm install dotenv\n\ndocker pull chromadb/chroma \ndocker run -p 8000:8000 chromadb/chroma \n\nexport OPENAI_API_KEY=YOUR_OPENAI_API_KEY"
             ],
             "outputs": []
         },
