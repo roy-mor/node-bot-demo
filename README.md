@@ -12,8 +12,12 @@ This project uses VSCode Notebook to store and run the code (source code is save
 ## How to use
 
 1. Clone the repository
-2. Make sure you have an API key from OpenAI 
-3. Create a .env file in the project's root folder with the value `OPENAI_API_KEY=[YOUR_KEY]`
-4. Install, or make sure Jupyter Notebook extensions are installed on your VSCode IDE (sometimes also called VSCode Notebook)
-5. Load the file `demo.nnb` into VSCode
+2. Make sure you have an API key from OpenAI
+4. Create a .env file in the project's root folder with the value `OPENAI_API_KEY=[YOUR_KEY]`
+5. Install, or make sure Jupyter Notebook extensions are installed on your VSCode IDE (sometimes also called VSCode Notebook)
+6. Load the file `demo.nnb` into VSCode
+7. Run each cell, starting from the first one which install packages and pre-requisites.
+   Alternatively, you can run `npm install` in the project's root folder. You will need to install Chroma (Chroma DB) using Docker and run the Chroma docker container
+
+   
    
