@@ -1,0 +1,186 @@
+{
+    "cells": [
+        {
+            "language": "markdown",
+            "source": [
+                "## Install packages and prerequisites:"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "shellscript",
+            "source": [
+                "npm install langchain @langchain/community\nnpm install @langchain/openai\nnpm install openai\nnpm install chromadb\nnpm install simple-git\nnpm install pdf-parse\nnpm install dotenv\n\ndocker pull chromadb/chroma \ndocker run -p 8000:8000 chromadb/chroma \n\nexport OPENAI_API_KEY_=YOUR_OPENAI_API_KEY"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "Load OpenAI API Key:"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "import dotenv from \"dotenv\";\ndotenv.config();\nconst openaiApiKey = process.env.OPENAI_API_KEY;"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "<img src=\"demo-images/data-loading.jpg\" width=\"75%\">\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "--------------------------------------------------------\n### Data Loading: fetch data from source (using git):"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "import fs from \"fs\";\nimport simpleGit from \"simple-git\";\n\nKNOWLEDGE_BASE_DIR = \"./handbook\";\nKNOWLEDGE_BASE_REPO_URL = \"https://gitlab.com/gitlab-com/content-sites/handbook.git\";\n\nconst git = simpleGit();\n\nconsole.log(\"Running git clone or git pull to fetch data\");\n\nif (!fs.existsSync(KNOWLEDGE_BASE_DIR)) {\n\tconsole.log(\"Running for the first time - executing git clone...\");\n\tawait git.clone(KNOWLEDGE_BASE_REPO_URL, KNOWLEDGE_BASE_DIR);\n} else {\n\tconsole.log(\"Updating local data - running git pull...\");\n\tconst gitWithRepo = simpleGit(KNOWLEDGE_BASE_DIR);\n\tawait gitWithRepo.pull();\n\tconsole.log(\"Pull completed.\");\n}\nconsole.log(\"Git done.\");\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "### Data Loading (continued)\n\nDocumentLoaders - objects that load in data from a source and return a list of Document objects"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "import { DirectoryLoader } from \"langchain/document_loaders/fs/directory\";\nimport { CSVLoader } from \"@langchain/community/document_loaders/fs/csv\";\nimport { PDFLoader } from \"@langchain/community/document_loaders/fs/pdf\";\nimport { TextLoader } from \"langchain/document_loaders/fs/text\";\n\nconst KNOWLEDGE_BASE_PATH = \"./handbook/content\"; // Folder containing GitLab's Handbook \n\nconst directoryLoader = new DirectoryLoader(KNOWLEDGE_BASE_PATH, {\n\t\".pdf\": (path) => new PDFLoader(path),\n\t\".md\": (path) => new TextLoader(path), \n\t\".txt\": (path) => new TextLoader(path), \n\t\".csv\": (path) => new CSVLoader(path),\n});\n\nconst loadedDocs = await directoryLoader.load();\n\nconsole.log(`\\n\\nI have loaded ${loadedDocs.length} documents!`);\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "<img src=\"demo-images/data-splitting.jpg\" width=\"75%\">"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "import { RecursiveCharacterTextSplitter } from \"langchain/text_splitter\";\n\nconst textSplitter = new RecursiveCharacterTextSplitter({  \n\tchunkSize: 1000, // size in characters\n\tchunkOverlap: 200, \n});\n\nconst splitDocs = await textSplitter.splitDocuments(loadedDocs);\n\nconsole.log(`Finished splitting documents! We have ${splitDocs.length} chunks altogether!`);\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "<img src=\"demo-images/data-embedding.jpg\" width=\"65%\">"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "### Initialize embedding model:"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "import dotenv from \"dotenv\";\ndotenv.config();\n\nimport { OpenAIEmbeddings } from \"@langchain/openai\";\n\nconst embeddings = new OpenAIEmbeddings({ model: \"text-embedding-3-small\" });\n\nconst resultingVector = await embeddings.embedQuery(\"Node.TLV 2024 Rocks!!!\");\n\nconsole.log(resultingVector);\nconsole.log(`This vector has ${resultingVector.length} dimensions`);\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "<img src=\"demo-images/data-storing.jpg\" width=\"72%\">"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "const { Chroma } = require(\"@langchain/community/vectorstores/chroma\");\n\n// In production use Async Generators, Iterators, Streams for efficient data processing\n\ntry {\n\tconst embeddingsModel = new OpenAIEmbeddings({ model: \"text-embedding-3-small\" });\n\n\t// break document chunks array into 4 parts to ensure successful ingestion\n\t// without exceeding database and node memory constraints\n\tconst partSize = Math.ceil(splitDocs.length / 4); \n\n\tfor (let i = 0; i < 4; i++) { \n\t\tconst startIndex = i * partSize;\n\t\tconst endIndex = (i + 1) * partSize;\n\t\tconst splitDocsPart = splitDocs.slice(startIndex, endIndex);\n\n\t\t// upsert all document chunks from this part\n\t\tconst vectorStore = await Chroma.fromDocuments(splitDocsPart, embeddingsModel, {\n\t\t\tcollectionName: \"knowledge-base-1\", \n\t\t});\n\t\tconsole.log(`Finished upserting Part ${i + 1}`);\n\t}\n\n\tconsole.log(\"All parts upserted successfully\");\n} catch (e) {\n\tconsole.error(\"Error during upsert:\", e);\n}\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "import { ChromaClient } from \"chromadb\";\nconst client = new ChromaClient();\n\nconst collection = await client.getCollection({ name: \"knowledge-base-1\" });\nawait collection.count();\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "--------------------------------"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "<img src=\"demo-images/RetrieveAndGenerate.jpg\" width=\"60%\">"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "Create system prompt template:"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "import { PromptTemplate } from \"@langchain/core/prompts\";\n\nconst template = `You are an assistant for question-answering tasks. Use the following pieces context to answer the question. \nIf you don't know the answer, just say that you don't know. Never make up an answer.  \n\nContext: \n{context}\n\nQuestion: {question}`;\n\nconst prompt = PromptTemplate.fromTemplate(template);\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "#### Initialize the LLM, Embedding model, Vector DB and query engine (retriever, and \"chain\")"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "import { ChatOpenAI } from \"@langchain/openai\";\nimport { OpenAIEmbeddings } from \"@langchain/openai\";\nimport { createStuffDocumentsChain } from \"langchain/chains/combine_documents\"; \nimport dotenv from \"dotenv\";\ndotenv.config(); \n\nconst { Chroma } = require(\"@langchain/community/vectorstores/chroma\");\n\n// initialize the LLM for inference\nconst llm = new ChatOpenAI({ model: \"gpt-4o\" });\n\nconst vectorStore = await Chroma.fromExistingCollection(\n\tnew OpenAIEmbeddings({ model: \"text-embedding-3-small\" }),\n\t{\n\t\tcollectionName: \"knowledge-base-1\",\n\t}\n);\n\n// wrapper around the vector store to simplify retreiving\nconst retriever = vectorStore.asRetriever({ k: 6, searchType: \"similarity\" }); // Top-K = 6\n\n// takes a list of documents (chunks) and formats them all into a prompt, then passes that prompt to an LLM.\nconst ragChain = await createStuffDocumentsChain({\n\tllm,\n\tprompt\n});\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "markdown",
+            "source": [
+                "### Retrieval & Generation phase - Q&A bot via text user interface\nSimulate the bot: "
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "//process.env.LANGCHAIN_VERBOSE = false\n\ntry {\n\tconst USER_QUESTION = `\n\t\n\n\t\n\t`;\n\n\tconst retrievedChunks = await retriever.invoke(USER_QUESTION);\n\n\tconst response = await ragChain.invoke({\n\t\tquestion: USER_QUESTION.trim(),\n\t\tcontext: retrievedChunks,\n\t});\n\n\tconsole.log(response);\n\n\tfor (doc of retrievedChunks) {\n\t\tsrc = doc.metadata.source;\n\t\tconsole.log(src);\n\t}\n} catch (e) {\n\tconsole.log(e);\n}\n\n"
+            ],
+            "outputs": []
+        },
+        {
+            "language": "javascript",
+            "source": [
+                "\n\n\n\n\n\n/* example questions:\n\t\n\twhat is a DRI?\n\twhat is the difference between a DRI and a manager?\n\twhat is the tech stack used here?\n\tI'm a developer and I'd like to get promoted. describe the process in detail\n\n\n\twhat is the process of taking a leave of absence?\n\tI want to work in an office. is there an office location?   \n\twhat are the job levels at here?\n*/\n"
+            ],
+            "outputs": []
+        }
+    ]
+}
