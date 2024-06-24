@@ -1,5 +1,9 @@
 # node-bot-demo
+## "Practical AI: Building an LLM-Powered Organizational Bot in Node.js in Under One Hour"
+
 Source code of demo at Node.TLV 2024 (VSCode Notebook)
+
+
 
 Author: Roy Mor
 
